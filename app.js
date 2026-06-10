@@ -33,34 +33,37 @@ const ROW_DEFS = [
 function buildSeats() {
   const seats = [];
   let displayRow = 0; // 用于二维距离计算的纵坐标（含过道占位）
+  let vrow = 0;       // 可视行号（忽略过道，1..12），用于框选
   for (const def of ROW_DEFS) {
     if (def.type === 'aisle') {
       displayRow += 0.6; // 过道带来纵向间隔
       continue;
     }
     displayRow += 1;
+    vrow += 1;
     if (def.type === 'full') {
       // 左区 座号 18,17,16,15
-      LEFT_COLS.forEach((col, i) => seats.push(makeSeat(def, 18 - i, col, displayRow)));
+      LEFT_COLS.forEach((col, i) => seats.push(makeSeat(def, 18 - i, col, displayRow, vrow)));
       // 中区 座号 14..5
-      MID_COLS.forEach((col, i) => seats.push(makeSeat(def, 14 - i, col, displayRow)));
+      MID_COLS.forEach((col, i) => seats.push(makeSeat(def, 14 - i, col, displayRow, vrow)));
       // 右区 座号 4,3,2,1
-      RIGHT_COLS.forEach((col, i) => seats.push(makeSeat(def, 4 - i, col, displayRow)));
+      RIGHT_COLS.forEach((col, i) => seats.push(makeSeat(def, 4 - i, col, displayRow, vrow)));
     } else if (def.type === 'mid') {
       // 第一排：中间 10 座，座号 10..1
-      MID_COLS.forEach((col, i) => seats.push(makeSeat(def, 10 - i, col, displayRow)));
+      MID_COLS.forEach((col, i) => seats.push(makeSeat(def, 10 - i, col, displayRow, vrow)));
     }
   }
   return seats;
 }
 
-function makeSeat(def, seatNo, col, displayRow) {
+function makeSeat(def, seatNo, col, displayRow, vrow) {
   return {
     id: `${def.rno}-${seatNo}`,
     rowName: def.name,
     rno: def.rno,
     seatNo,
     col,            // 网格列 (1-22)
+    vrow,           // 可视行号 (1-12)
     x: col,         // 距离计算横坐标
     y: displayRow,  // 距离计算纵坐标
     label: null,
@@ -69,12 +72,24 @@ function makeSeat(def, seatNo, col, displayRow) {
   };
 }
 
+function getSeatById(id) {
+  return seats.find((s) => s.id === id) || null;
+}
+
 // ---- 全局状态 ----
 const STORAGE_KEY = 'library-seating-v1';
 let seats = buildSeats();
 // labels: { [labelName]: { color } }，按添加顺序用于稳定配色
 const labels = {};
 let hueCursor = Math.random() * 360; // 随机起始色相
+
+// ---- 交互状态 ----
+let regionMode = false;            // 手动选区模式
+const selection = new Set();       // 已选座位 id 集合
+let dragSrcId = null;              // 拖拽移动的源座位 id
+let selDownId = null;              // 框选起点座位 id
+let selDragging = false;           // 是否正在框选
+let selMoved = false;              // 框选过程中是否移动到其它座位
 
 // ---- 颜色 ----
 const GOLDEN_ANGLE = 137.508;
@@ -216,12 +231,14 @@ function renderSeatmap() {
     const rowSeats = seats.filter((s) => s.rno === def.rno);
     for (const s of rowSeats) {
       const el = document.createElement('div');
-      el.className = 'seat' + (s.name ? ' occupied' : '');
+      el.className = 'seat' + (s.name ? ' occupied' : '') + (selection.has(s.id) ? ' selected' : '');
       el.style.gridColumn = String(s.col + 1); // +1 因为第 1 列是行号
       el.dataset.seatId = s.id;
+      // 普通模式下，已占用座位可拖拽移动
+      el.draggable = !regionMode && !!s.name;
       if (s.name) {
         el.style.background = labels[s.label].color;
-        el.title = `${def.name} ${s.seatNo}号 · ${s.label} · ${s.name}`;
+        el.title = `${def.name} ${s.seatNo}号 · ${s.label} · ${s.name}（拖动可移动/交换，双击移除）`;
         const nm = document.createElement('span');
         nm.className = 'nm';
         nm.textContent = s.name;
@@ -249,10 +266,14 @@ function renderLegend() {
     const sw = document.createElement('span');
     sw.className = 'swatch';
     sw.style.background = labels[name].color;
+    sw.title = '点击更换颜色';
+    sw.addEventListener('click', () => recolorLabel(name));
 
     const nm = document.createElement('span');
     nm.className = 'lg-name';
     nm.textContent = name;
+    nm.title = '双击重命名标签';
+    nm.addEventListener('dblclick', () => beginRename(name, nm));
 
     const ct = document.createElement('span');
     ct.className = 'lg-count';
@@ -295,6 +316,202 @@ function removeLabel(name) {
   }
   delete labels[name];
   render();
+}
+
+// 标签换色
+function recolorLabel(name) {
+  if (!labels[name]) return;
+  labels[name].color = nextColor();
+  render();
+}
+
+// 标签重命名（若与已有标签同名则合并）
+function applyRename(oldName, rawName) {
+  const newName = (rawName || '').trim();
+  if (!newName || newName === oldName || !labels[oldName]) return;
+  if (labels[newName]) {
+    // 合并到已有标签：座位归入新标签，保留新标签颜色
+    for (const s of seats) if (s.label === oldName) s.label = newName;
+    delete labels[oldName];
+  } else {
+    labels[newName] = labels[oldName];
+    delete labels[oldName];
+    for (const s of seats) if (s.label === oldName) s.label = newName;
+  }
+  render();
+}
+
+// 内联重命名（不弹窗，避免阻塞）
+function beginRename(oldName, nmEl) {
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.className = 'lg-rename';
+  input.value = oldName;
+  let done = false;
+  const commit = () => {
+    if (done) return;
+    done = true;
+    applyRename(oldName, input.value);
+    if (labels[oldName]) render(); // 名称未变化时也重渲染还原
+  };
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); commit(); }
+    else if (e.key === 'Escape') { done = true; render(); }
+  });
+  input.addEventListener('blur', commit);
+  nmEl.replaceWith(input);
+  input.focus();
+  input.select();
+}
+
+// 移除单个座位上的人
+function clearSeat(id) {
+  const s = getSeatById(id);
+  if (!s || !s.name) return;
+  const label = s.label;
+  s.label = null;
+  s.name = null;
+  // 若该标签已无人，移除标签
+  if (label && !seats.some((x) => x.label === label && x.name)) delete labels[label];
+  render();
+}
+
+// ---- 拖拽移动 / 交换 ----
+function onSeatDragStart(e) {
+  const el = e.target.closest('.seat');
+  if (!el || regionMode) return;
+  const s = getSeatById(el.dataset.seatId);
+  if (!s || !s.name) return;
+  dragSrcId = s.id;
+  e.dataTransfer.effectAllowed = 'move';
+  try { e.dataTransfer.setData('text/plain', s.id); } catch (err) { /* ignore */ }
+}
+
+function onSeatDragOver(e) {
+  if (regionMode || !dragSrcId) return;
+  const el = e.target.closest('.seat');
+  if (!el) return;
+  e.preventDefault();
+  e.dataTransfer.dropEffect = 'move';
+  el.classList.add('drop-target');
+}
+
+function onSeatDragLeave(e) {
+  const el = e.target.closest('.seat');
+  if (el) el.classList.remove('drop-target');
+}
+
+function onSeatDrop(e) {
+  if (regionMode || !dragSrcId) return;
+  const el = e.target.closest('.seat');
+  if (!el) return;
+  e.preventDefault();
+  el.classList.remove('drop-target');
+  const src = getSeatById(dragSrcId);
+  const dst = getSeatById(el.dataset.seatId);
+  dragSrcId = null;
+  if (!src || !dst || src === dst) return;
+  // 移动 / 交换（标签与姓名一并搬移）
+  const tmp = { label: dst.label, name: dst.name };
+  dst.label = src.label;
+  dst.name = src.name;
+  if (tmp.name) {
+    src.label = tmp.label;
+    src.name = tmp.name;
+  } else {
+    src.label = null;
+    src.name = null;
+  }
+  render();
+}
+
+// ---- 手动选区（框选）----
+function setRegionMode(on) {
+  regionMode = on;
+  if (!on) selection.clear();
+  document.getElementById('selInfo').hidden = !on;
+  document.body.classList.toggle('region-mode', on);
+  render();
+  updateSelInfo();
+}
+
+function boxBetween(aId, bId) {
+  const a = getSeatById(aId);
+  const b = getSeatById(bId);
+  if (!a || !b) return [];
+  const minV = Math.min(a.vrow, b.vrow), maxV = Math.max(a.vrow, b.vrow);
+  const minC = Math.min(a.col, b.col), maxC = Math.max(a.col, b.col);
+  return seats.filter((s) => s.vrow >= minV && s.vrow <= maxV && s.col >= minC && s.col <= maxC);
+}
+
+function applySelectionClasses() {
+  for (const s of seats) {
+    if (s.el) s.el.classList.toggle('selected', selection.has(s.id));
+  }
+}
+
+function updateSelInfo() {
+  const el = document.getElementById('selCount');
+  if (el) el.textContent = String(selection.size);
+}
+
+function onSeatMouseDown(e) {
+  if (!regionMode) return;
+  const el = e.target.closest('.seat');
+  if (!el) return;
+  e.preventDefault(); // 避免选中文字
+  selDownId = el.dataset.seatId;
+  selDragging = true;
+  selMoved = false;
+}
+
+function onSeatMouseOver(e) {
+  if (!regionMode || !selDragging) return;
+  const el = e.target.closest('.seat');
+  if (!el) return;
+  const curId = el.dataset.seatId;
+  if (curId !== selDownId) selMoved = true;
+  // 拖动框选：实时把矩形范围设为当前选区
+  selection.clear();
+  for (const s of boxBetween(selDownId, curId)) selection.add(s.id);
+  applySelectionClasses();
+  updateSelInfo();
+}
+
+function onDocMouseUp() {
+  if (!regionMode || !selDragging) return;
+  selDragging = false;
+  if (!selMoved && selDownId) {
+    // 单击：切换该座位的选中状态
+    if (selection.has(selDownId)) selection.delete(selDownId);
+    else selection.add(selDownId);
+    applySelectionClasses();
+    updateSelInfo();
+  }
+  selDownId = null;
+}
+
+function clearSelection() {
+  selection.clear();
+  applySelectionClasses();
+  updateSelInfo();
+}
+
+// 把一批人排到当前选区（按从上到下、从左到右顺序填入空位）
+function assignToSelection(labelName, names) {
+  ensureLabel(labelName);
+  const selSeats = seats
+    .filter((s) => selection.has(s.id))
+    .sort((a, b) => (a.vrow - b.vrow) || (b.col - a.col)); // 同排内座号从大到小（与编号方向一致）
+  let placed = 0;
+  for (const s of selSeats) {
+    if (placed >= names.length) break;
+    if (s.name) continue; // 跳过已占用
+    s.label = labelName;
+    s.name = names[placed];
+    placed += 1;
+  }
+  return { placed, overflow: names.length - placed };
 }
 
 // ---- 持久化 ----
@@ -357,16 +574,24 @@ function onAdd() {
     setStatus('请粘贴至少一个姓名。', 'err');
     return;
   }
-  const { placed, overflow } = addGroup(labelName, names);
+
+  const useSelection = regionMode && selection.size > 0;
+  const { placed, overflow } = useSelection
+    ? assignToSelection(labelName, names)
+    : addGroup(labelName, names);
+  if (useSelection) clearSelection();
   render();
   const labelEl = document.getElementById('labelInput');
   labelEl.value = '';
   document.getElementById('namesInput').value = '';
   labelEl.focus();
+
+  const where = useSelection ? '到选中区域' : '';
   if (overflow > 0) {
-    setStatus(`已为「${labelName}」安排 ${placed} 人；座位已满，还有 ${overflow} 人未排座。`, 'err');
+    const reason = useSelection ? '选区空位不足' : '座位已满';
+    setStatus(`已为「${labelName}」安排 ${placed} 人${where}；${reason}，还有 ${overflow} 人未排座。`, 'err');
   } else {
-    setStatus(`已为「${labelName}」安排 ${placed} 人。`, 'ok');
+    setStatus(`已为「${labelName}」安排 ${placed} 人${where}。`, 'ok');
   }
 }
 
@@ -532,8 +757,20 @@ function onClear() {
   seats = buildSeats();
   for (const k of Object.keys(labels)) delete labels[k];
   hueCursor = Math.random() * 360;
+  selection.clear();
   render();
   setStatus('已清空。', 'ok');
+}
+
+function onSeatDblClick(e) {
+  const el = e.target.closest('.seat');
+  if (!el) return;
+  const s = getSeatById(el.dataset.seatId);
+  if (s && s.name) {
+    const nm = s.name;
+    clearSeat(s.id);
+    setStatus(`已移除「${nm}」。`, 'ok');
+  }
 }
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -542,4 +779,19 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('addBtn').addEventListener('click', onAdd);
   document.getElementById('clearBtn').addEventListener('click', onClear);
   document.getElementById('exportBtn').addEventListener('click', exportImage);
+
+  const regionChk = document.getElementById('regionMode');
+  regionChk.addEventListener('change', () => setRegionMode(regionChk.checked));
+  document.getElementById('clearSelBtn').addEventListener('click', clearSelection);
+
+  // 事件委托：座位图上的拖拽移动与框选
+  const map = document.getElementById('seatmap');
+  map.addEventListener('dragstart', onSeatDragStart);
+  map.addEventListener('dragover', onSeatDragOver);
+  map.addEventListener('dragleave', onSeatDragLeave);
+  map.addEventListener('drop', onSeatDrop);
+  map.addEventListener('mousedown', onSeatMouseDown);
+  map.addEventListener('mouseover', onSeatMouseOver);
+  map.addEventListener('dblclick', onSeatDblClick);
+  document.addEventListener('mouseup', onDocMouseUp);
 });

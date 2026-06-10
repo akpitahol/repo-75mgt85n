@@ -240,6 +240,68 @@ body {
   outline: 3px solid var(--primary);
   outline-offset: -1px;
 }
+.seat.occupied[draggable="true"] { cursor: grab; }
+.seat.occupied[draggable="true"]:active { cursor: grabbing; }
+.seat.drop-target {
+  outline: 3px dashed var(--primary);
+  outline-offset: -1px;
+}
+.seat.selected {
+  outline: 3px solid #1f9d57;
+  outline-offset: -1px;
+  box-shadow: 0 0 0 2px rgba(31,157,87,0.25);
+}
+/* 选区模式下避免拖动时选中文字 */
+body.region-mode .seatmap { user-select: none; }
+body.region-mode .seat { cursor: crosshair; }
+
+/* ---- 选区 / 模式控件 ---- */
+.mode-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 14px;
+  font-size: 14px;
+  cursor: pointer;
+}
+.mode-toggle input { width: 16px; height: 16px; }
+.sel-info {
+  margin-top: 8px;
+  font-size: 13px;
+  color: var(--text);
+  background: #f0f7f2;
+  border: 1px solid #cfe8da;
+  border-radius: 8px;
+  padding: 8px 10px;
+}
+.sel-info .hint { margin: 6px 0 0; }
+.hint { font-size: 12px; color: var(--muted); line-height: 1.5; }
+.link-btn {
+  border: none;
+  background: none;
+  color: var(--primary);
+  cursor: pointer;
+  font-size: 13px;
+  padding: 0;
+  text-decoration: underline;
+}
+.tips .tip-list {
+  margin: 4px 0 0;
+  padding-left: 18px;
+  font-size: 13px;
+  color: var(--muted);
+  line-height: 1.7;
+}
+.tips .tip-list b { color: var(--text); }
+
+.lg-rename {
+  width: 8em;
+  font-size: 13px;
+  padding: 1px 4px;
+  border: 1px solid var(--primary);
+  border-radius: 4px;
+  outline: none;
+}
 
 .stage {
   margin: 22px auto 4px;
