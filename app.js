@@ -94,7 +94,7 @@ function ensureLabel(name) {
 // ---- 姓名解析 ----
 function parseNames(raw) {
   return raw
-    .split(/[\n\r,，、;；\t]+/)
+    .split(/[\s,，、;；]+/)
     .map((s) => s.trim())
     .filter((s) => s.length > 0);
 }
@@ -122,8 +122,8 @@ function assignSeats(labelName, count) {
   if (existing.length > 0) {
     cluster = existing.slice();
   } else {
-    // 新标签：从最靠前（主台方向）、最靠右的空位开始，保证布局紧凑有序
-    free.sort((a, b) => (a.y - b.y) || (a.x - b.x));
+    // 新标签：从最靠前（主台方向，即第一排）的空位开始，从前往后排座
+    free.sort((a, b) => (b.y - a.y) || (a.x - b.x));
     cluster = [free[0]];
     assigned.push(free[0]);
     free[0].name = '__reserved__'; // 占位，避免循环中被重复选中
@@ -141,8 +141,8 @@ function assignSeats(labelName, count) {
         const dd = dist2(f, c);
         if (dd < d) d = dd;
       }
-      // 轻微偏好靠前、靠右，作为平局打破
-      d = d + f.y * 0.001 + f.x * 0.0001;
+      // 轻微偏好靠前（主台方向）、靠左，作为平局打破
+      d = d - f.y * 0.001 + f.x * 0.0001;
       if (d < bestD) {
         bestD = d;
         best = f;
@@ -346,7 +346,10 @@ function onAdd() {
   }
   const { placed, overflow } = addGroup(labelName, names);
   render();
+  const labelEl = document.getElementById('labelInput');
+  labelEl.value = '';
   document.getElementById('namesInput').value = '';
+  labelEl.focus();
   if (overflow > 0) {
     setStatus(`已为「${labelName}」安排 ${placed} 人；座位已满，还有 ${overflow} 人未排座。`, 'err');
   } else {
