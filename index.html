@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>图书馆座位排列工具</title>
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="app-header">
+    <h1>图书馆座位排列工具</h1>
+    <p class="subtitle">共 208 个座位 · 批量粘贴姓名并按标签自动分区上色</p>
+  </header>
+
+  <div class="layout">
+    <!-- 控制面板 -->
+    <aside class="panel">
+      <section class="card">
+        <h2>批量录入</h2>
+        <label class="field">
+          <span>标签（如：电气工程学院）</span>
+          <input id="labelInput" type="text" placeholder="输入标签名称" />
+        </label>
+        <label class="field">
+          <span>姓名（每行一个，或用空格/逗号/顿号分隔）</span>
+          <textarea id="namesInput" rows="6" placeholder="张三&#10;李四&#10;王五"></textarea>
+        </label>
+        <div class="btn-row">
+          <button id="addBtn" class="btn primary">添加并排座</button>
+          <button id="clearBtn" class="btn ghost">清空全部</button>
+        </div>
+        <p id="status" class="status"></p>
+      </section>
+
+      <section class="card">
+        <div class="legend-head">
+          <h2>标签图例</h2>
+          <span id="seatStat" class="seat-stat"></span>
+        </div>
+        <ul id="legend" class="legend"></ul>
+      </section>
+    </aside>
+
+    <!-- 座位图 -->
+    <main class="seatmap-wrap">
+      <div class="seatmap-scroll">
+        <div id="seatmap" class="seatmap"></div>
+        <div class="stage">主 台</div>
+      </div>
+    </main>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
