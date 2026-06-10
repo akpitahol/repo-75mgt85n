@@ -91,6 +91,17 @@ function ensureLabel(name) {
   return labels[name];
 }
 
+// ---- 文字自适应（保证姓名一行完整显示）----
+const FONT_FAMILY = '-apple-system, "Segoe UI", "Microsoft YaHei", Roboto, Helvetica, Arial, sans-serif';
+const _measCtx = document.createElement('canvas').getContext('2d');
+function fitFontSize(text, maxWidth, maxFont, minFont) {
+  for (let fs = maxFont; fs >= minFont; fs--) {
+    _measCtx.font = `600 ${fs}px ${FONT_FAMILY}`;
+    if (_measCtx.measureText(text).width <= maxWidth) return fs;
+  }
+  return minFont;
+}
+
 // ---- 姓名解析 ----
 function parseNames(raw) {
   return raw
@@ -214,6 +225,8 @@ function renderSeatmap() {
         const nm = document.createElement('span');
         nm.className = 'nm';
         nm.textContent = s.name;
+        // 自适应字号，保证姓名一行完整显示（座位内可用宽约 54px）
+        nm.style.fontSize = fitFontSize(s.name, 54, 15, 9) + 'px';
         el.appendChild(nm);
       } else {
         el.textContent = s.seatNo;
@@ -357,6 +370,163 @@ function onAdd() {
   }
 }
 
+// ---- 导出图片（纯 Canvas，离线可用）----
+function roundRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+
+function exportImage() {
+  const SEAT_W = 58, SEAT_H = 38, GAP = 6, LABEL_W = 78, COLS = 22, PAD = 28, SCALE = 2;
+  const contentW = LABEL_W + COLS * (SEAT_W + GAP);
+  const W = PAD * 2 + contentW;
+
+  const ctx = _measCtx;
+  // --- 图例分行预计算 ---
+  const labelNames = Object.keys(labels);
+  const SW = 18, ITEM_PAD = 12, ITEM_GAP = 10, ITEM_H = 30;
+  const legendItems = labelNames.map((name) => {
+    const count = seats.filter((s) => s.label === name && s.name).length;
+    const text = `${name}  ${count}人`;
+    ctx.font = `600 14px ${FONT_FAMILY}`;
+    const tw = ctx.measureText(text).width;
+    return { name, text, w: ITEM_PAD + SW + 8 + tw + ITEM_PAD };
+  });
+  const legendLines = [];
+  let line = [], lineW = 0;
+  for (const it of legendItems) {
+    if (lineW + it.w > contentW && line.length) {
+      legendLines.push(line); line = []; lineW = 0;
+    }
+    line.push(it); lineW += it.w + ITEM_GAP;
+  }
+  if (line.length) legendLines.push(line);
+
+  // --- 纵向布局 ---
+  let y = PAD;
+  const titleY = y; y += 34;        // 标题
+  const subY = y; y += 24;          // 副标题
+  const legendY = y;
+  const legendH = legendLines.length * (ITEM_H + 8);
+  y += legendLines.length ? legendH + 10 : 0;
+  const gridTop = y;
+  // 计算每排 y
+  const rowPlan = [];
+  for (const def of ROW_DEFS) {
+    if (def.type === 'aisle') { y += 16; continue; }
+    rowPlan.push({ def, y });
+    y += SEAT_H + GAP;
+  }
+  const gridBottom = y + 6;
+  const stageY = gridBottom + 14;
+  const stageH = 40;
+  const H = stageY + stageH + PAD;
+
+  // --- 画布 ---
+  const canvas = document.createElement('canvas');
+  canvas.width = W * SCALE;
+  canvas.height = H * SCALE;
+  const c = canvas.getContext('2d');
+  c.scale(SCALE, SCALE);
+  c.textBaseline = 'middle';
+
+  // 背景
+  c.fillStyle = '#ffffff';
+  c.fillRect(0, 0, W, H);
+
+  // 标题
+  c.fillStyle = '#1f2733';
+  c.font = `700 22px ${FONT_FAMILY}`;
+  c.textAlign = 'left';
+  c.fillText('图书馆座位排列工具', PAD, titleY + 16);
+  const occupied = seats.filter((s) => s.name).length;
+  c.fillStyle = '#6b7585';
+  c.font = `400 13px ${FONT_FAMILY}`;
+  c.fillText(`共 ${seats.length} 个座位 · 已坐 ${occupied} 人`, PAD, subY + 12);
+
+  // 图例
+  legendLines.forEach((ln, li) => {
+    let x = PAD;
+    const ly = legendY + li * (ITEM_H + 8);
+    for (const it of ln) {
+      c.fillStyle = '#ffffff';
+      c.strokeStyle = '#e2e6ef';
+      c.lineWidth = 1;
+      roundRect(c, x, ly, it.w, ITEM_H, 8);
+      c.fill(); c.stroke();
+      c.fillStyle = labels[it.name].color;
+      roundRect(c, x + ITEM_PAD, ly + (ITEM_H - SW) / 2, SW, SW, 5);
+      c.fill();
+      c.strokeStyle = 'rgba(0,0,0,0.12)';
+      c.stroke();
+      c.fillStyle = '#1f2733';
+      c.font = `600 14px ${FONT_FAMILY}`;
+      c.fillText(it.text, x + ITEM_PAD + SW + 8, ly + ITEM_H / 2);
+      x += it.w + ITEM_GAP;
+    }
+  });
+
+  // 座位
+  for (const { def, y: ry } of rowPlan) {
+    // 行号
+    c.fillStyle = '#6b7585';
+    c.font = `400 13px ${FONT_FAMILY}`;
+    c.textAlign = 'right';
+    c.fillText(def.name, PAD + LABEL_W - 8, ry + SEAT_H / 2);
+    c.textAlign = 'left';
+
+    const rowSeats = seats.filter((s) => s.rno === def.rno);
+    for (const s of rowSeats) {
+      const x = PAD + LABEL_W + (s.col - 1) * (SEAT_W + GAP);
+      const filled = !!s.name;
+      c.fillStyle = filled ? labels[s.label].color : '#eef1f7';
+      c.strokeStyle = filled ? 'rgba(0,0,0,0.12)' : '#d6dbe6';
+      c.lineWidth = 1;
+      roundRect(c, x, ry, SEAT_W, SEAT_H, 6);
+      c.fill(); c.stroke();
+      c.textAlign = 'center';
+      if (filled) {
+        c.fillStyle = '#1f2733';
+        const fs = fitFontSize(s.name, SEAT_W - 6, 16, 9);
+        c.font = `600 ${fs}px ${FONT_FAMILY}`;
+        c.fillText(s.name, x + SEAT_W / 2, ry + SEAT_H / 2);
+      } else {
+        c.fillStyle = '#9aa3b2';
+        c.font = `400 11px ${FONT_FAMILY}`;
+        c.fillText(String(s.seatNo), x + SEAT_W / 2, ry + SEAT_H / 2);
+      }
+      c.textAlign = 'left';
+    }
+  }
+
+  // 主台
+  const stageW = 360;
+  const stageX = PAD + LABEL_W + (contentW - LABEL_W - stageW) / 2;
+  c.fillStyle = '#2f3a4d';
+  roundRect(c, stageX, stageY, stageW, stageH, 8);
+  c.fill();
+  c.fillStyle = '#ffffff';
+  c.font = `600 15px ${FONT_FAMILY}`;
+  c.textAlign = 'center';
+  c.fillText('主    台', stageX + stageW / 2, stageY + stageH / 2);
+  c.textAlign = 'left';
+
+  // 下载
+  const url = canvas.toDataURL('image/png');
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = '座位表.png';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setStatus('已导出座位表图片。', 'ok');
+}
+
 function onClear() {
   if (!confirm('确定清空全部座位与标签吗？')) return;
   seats = buildSeats();
@@ -371,4 +541,5 @@ document.addEventListener('DOMContentLoaded', () => {
   render();
   document.getElementById('addBtn').addEventListener('click', onAdd);
   document.getElementById('clearBtn').addEventListener('click', onClear);
+  document.getElementById('exportBtn').addEventListener('click', exportImage);
 });

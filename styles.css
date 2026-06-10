@@ -113,11 +113,19 @@ body {
 .status.err { color: #d8453b; }
 
 /* ---- 图例 ---- */
+.seatmap-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
 .legend-head {
   display: flex;
-  align-items: baseline;
-  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
 }
+.legend-head h2 { margin: 0; }
+.export-btn { flex: 0 0 auto; padding: 8px 16px; }
 .seat-stat { font-size: 12px; color: var(--muted); }
 .legend {
   list-style: none;
@@ -129,6 +137,13 @@ body {
   max-height: 50vh;
   overflow: auto;
 }
+.legend-row {
+  flex-direction: row;
+  flex-wrap: wrap;
+  max-height: none;
+  margin-bottom: 14px;
+}
+.legend-row li { flex: 0 0 auto; }
 .legend:empty::after {
   content: "暂无标签";
   color: var(--muted);
@@ -176,8 +191,8 @@ body {
 .seatmap {
   display: grid;
   /* 1 列行号 + 22 个座位位置（含两条过道） */
-  grid-template-columns: 56px repeat(22, 30px);
-  gap: 5px;
+  grid-template-columns: 64px repeat(22, 58px);
+  gap: 6px;
   justify-content: start;
 }
 
@@ -197,35 +212,29 @@ body {
 }
 
 .seat {
-  height: 30px;
+  height: 38px;
   border-radius: 6px;
   background: var(--seat-empty);
   border: 1px solid var(--seat-empty-border);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 10px;
+  font-size: 12px;
   color: #9aa3b2;
   overflow: hidden;
   cursor: default;
 }
 .seat.occupied {
   color: #1f2733;
-  font-size: 11px;
   font-weight: 600;
   border-color: rgba(0,0,0,0.10);
 }
-.seat .seat-no {
-  position: absolute;
-  font-size: 8px;
-  color: rgba(0,0,0,0.35);
-}
 .seat .nm {
   white-space: nowrap;
-  text-overflow: ellipsis;
-  overflow: hidden;
-  max-width: 100%;
+  overflow: visible;
+  max-width: none;
   padding: 0 1px;
+  line-height: 1.1;
 }
 .seat.highlight {
   outline: 3px solid var(--primary);

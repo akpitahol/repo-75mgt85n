@@ -31,18 +31,19 @@
         </div>
         <p id="status" class="status"></p>
       </section>
-
-      <section class="card">
-        <div class="legend-head">
-          <h2>标签图例</h2>
-          <span id="seatStat" class="seat-stat"></span>
-        </div>
-        <ul id="legend" class="legend"></ul>
-      </section>
     </aside>
 
     <!-- 座位图 -->
     <main class="seatmap-wrap">
+      <div class="seatmap-toolbar">
+        <div class="legend-head">
+          <h2>标签图例</h2>
+          <span id="seatStat" class="seat-stat"></span>
+          <button id="exportBtn" class="btn primary export-btn">导出图片</button>
+        </div>
+      </div>
+      <ul id="legend" class="legend legend-row"></ul>
+
       <div class="seatmap-scroll">
         <div id="seatmap" class="seatmap"></div>
         <div class="stage">主 台</div>
