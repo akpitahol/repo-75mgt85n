@@ -1,0 +1,317 @@
+:root {
+  --bg: #f4f6fb;
+  --panel: #ffffff;
+  --border: #e2e6ef;
+  --text: #1f2733;
+  --muted: #6b7585;
+  --primary: #3b6ef6;
+  --primary-dark: #2a55cc;
+  --seat-empty: #eef1f7;
+  --seat-empty-border: #d6dbe6;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: -apple-system, "Segoe UI", "Microsoft YaHei", Roboto, Helvetica, Arial, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+}
+
+.app-header {
+  padding: 18px 24px 10px;
+}
+.app-header h1 {
+  margin: 0;
+  font-size: 22px;
+}
+.subtitle {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.layout {
+  display: flex;
+  gap: 18px;
+  align-items: flex-start;
+  padding: 8px 24px 24px;
+}
+
+/* ---- 控制面板 ---- */
+.panel {
+  width: 320px;
+  flex: 0 0 320px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  position: sticky;
+  top: 12px;
+}
+
+.card {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px;
+  box-shadow: 0 1px 2px rgba(20, 30, 60, 0.04);
+}
+.card h2 {
+  margin: 0 0 12px;
+  font-size: 15px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+.field span {
+  font-size: 12px;
+  color: var(--muted);
+}
+.field input,
+.field textarea {
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 14px;
+  font-family: inherit;
+  resize: vertical;
+}
+.field input:focus,
+.field textarea:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(59, 110, 246, 0.15);
+}
+
+.btn-row { display: flex; gap: 10px; }
+.btn {
+  flex: 1;
+  padding: 9px 12px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  font-size: 14px;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+.btn.primary { background: var(--primary); color: #fff; }
+.btn.primary:hover { background: var(--primary-dark); }
+.btn.ghost { background: #fff; border-color: var(--border); color: var(--muted); }
+.btn.ghost:hover { border-color: #c2c8d6; color: var(--text); }
+
+.status {
+  margin: 10px 0 0;
+  font-size: 12px;
+  min-height: 16px;
+}
+.status.ok { color: #1f9d57; }
+.status.err { color: #d8453b; }
+
+/* ---- 图例 ---- */
+.seatmap-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+.legend-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.legend-head h2 { margin: 0; }
+.export-btn { flex: 0 0 auto; padding: 8px 16px; }
+.seat-stat { font-size: 12px; color: var(--muted); }
+.legend {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 50vh;
+  overflow: auto;
+}
+.legend-row {
+  flex-direction: row;
+  flex-wrap: wrap;
+  max-height: none;
+  margin-bottom: 14px;
+}
+.legend-row li { flex: 0 0 auto; }
+.legend:empty::after {
+  content: "暂无标签";
+  color: var(--muted);
+  font-size: 13px;
+}
+.legend li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.legend .swatch {
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  flex: 0 0 22px;
+  border: 1px solid rgba(0,0,0,0.12);
+}
+.legend .lg-name { flex: 1; font-size: 13px; word-break: break-all; }
+.legend .lg-count { font-size: 12px; color: var(--muted); }
+.legend .lg-remove {
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+  padding: 2px 4px;
+}
+.legend .lg-remove:hover { color: #d8453b; }
+
+/* ---- 座位图 ---- */
+.seatmap-wrap {
+  flex: 1;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 18px;
+  box-shadow: 0 1px 2px rgba(20, 30, 60, 0.04);
+}
+.seatmap-scroll { overflow-x: auto; }
+
+.seatmap {
+  display: grid;
+  /* 1 列行号 + 22 个座位位置（含两条过道） */
+  grid-template-columns: 64px repeat(22, 58px);
+  gap: 6px;
+  justify-content: start;
+}
+
+.row-label {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding-right: 8px;
+  font-size: 12px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.aisle-row {
+  grid-column: 1 / -1;
+  height: 14px;
+}
+
+.seat {
+  height: 38px;
+  border-radius: 6px;
+  background: var(--seat-empty);
+  border: 1px solid var(--seat-empty-border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  color: #9aa3b2;
+  overflow: hidden;
+  cursor: default;
+}
+.seat.occupied {
+  color: #1f2733;
+  font-weight: 600;
+  border-color: rgba(0,0,0,0.10);
+}
+.seat .nm {
+  white-space: nowrap;
+  overflow: visible;
+  max-width: none;
+  padding: 0 1px;
+  line-height: 1.1;
+}
+.seat.highlight {
+  outline: 3px solid var(--primary);
+  outline-offset: -1px;
+}
+.seat.occupied[draggable="true"] { cursor: grab; }
+.seat.occupied[draggable="true"]:active { cursor: grabbing; }
+.seat.drop-target {
+  outline: 3px dashed var(--primary);
+  outline-offset: -1px;
+}
+.seat.selected {
+  outline: 3px solid #1f9d57;
+  outline-offset: -1px;
+  box-shadow: 0 0 0 2px rgba(31,157,87,0.25);
+}
+/* 选区模式下避免拖动时选中文字 */
+body.region-mode .seatmap { user-select: none; }
+body.region-mode .seat { cursor: crosshair; }
+
+/* ---- 选区 / 模式控件 ---- */
+.mode-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 14px;
+  font-size: 14px;
+  cursor: pointer;
+}
+.mode-toggle input { width: 16px; height: 16px; }
+.sel-info {
+  margin-top: 8px;
+  font-size: 13px;
+  color: var(--text);
+  background: #f0f7f2;
+  border: 1px solid #cfe8da;
+  border-radius: 8px;
+  padding: 8px 10px;
+}
+.sel-info .hint { margin: 6px 0 0; }
+.hint { font-size: 12px; color: var(--muted); line-height: 1.5; }
+.link-btn {
+  border: none;
+  background: none;
+  color: var(--primary);
+  cursor: pointer;
+  font-size: 13px;
+  padding: 0;
+  text-decoration: underline;
+}
+.tips .tip-list {
+  margin: 4px 0 0;
+  padding-left: 18px;
+  font-size: 13px;
+  color: var(--muted);
+  line-height: 1.7;
+}
+.tips .tip-list b { color: var(--text); }
+
+.lg-rename {
+  width: 8em;
+  font-size: 13px;
+  padding: 1px 4px;
+  border: 1px solid var(--primary);
+  border-radius: 4px;
+  outline: none;
+}
+
+.stage {
+  margin: 22px auto 4px;
+  width: 360px;
+  max-width: 80%;
+  text-align: center;
+  padding: 10px;
+  border-radius: 8px;
+  background: #2f3a4d;
+  color: #fff;
+  letter-spacing: 8px;
+  font-size: 14px;
+}
