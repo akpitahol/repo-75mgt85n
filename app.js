@@ -502,7 +502,7 @@ function assignToSelection(labelName, names) {
   ensureLabel(labelName);
   const selSeats = seats
     .filter((s) => selection.has(s.id))
-    .sort((a, b) => (a.vrow - b.vrow) || (b.col - a.col)); // 同排内座号从大到小（与编号方向一致）
+    .sort((a, b) => (b.vrow - a.vrow) || (b.col - a.col)); // 从最下面一排往上、每排从右往左
   let placed = 0;
   for (const s of selSeats) {
     if (placed >= names.length) break;
